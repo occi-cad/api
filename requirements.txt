@@ -10,4 +10,4 @@ cadquery==2.2.0b2
 numpy==1.23.1
 whoosh==2.7.4
 semver>=3.0.0rc1
-#git+https://github.com/gumyr/cq_warehouse.git#egg=cq_warehouse
+git+https://github.com/gumyr/cq_warehouse.git#egg=cq_warehouse
