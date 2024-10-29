@@ -87,18 +87,17 @@ class ModelRequestInput(BaseModel):
     """ Used to handle input from API
         This model is extended on runtime to include specific parameter names:
         ie: bracket?width=100
-        Is is then turned into a generic ModelRequest
+        It's then turned into a generic ModelRequest
     """
     script_org:str = None # always lowercase
     script_name:str = None # always lowercase
     script_version:str = None
     script_special_requested_entity:str = None # requested entity: None=script, versions, params, presets, {{file.ext}}
-    format: ModelFormat = 'step'
+    format: ModelFormat = 'step' # TODO: check what is available
     output:RequestResultFormat = 'model' # The way to output. Either just a model (default) or the full CadScriptResult with the specific format
     settings:dict = {} # more refined settings (maybe cad engine specific) 
 
-    # params:dict = {} # { param_name: value } NOTE: only used now for pre-calculating cache - but can also be used in API later
-    # !!! params are added on runtime by name !!!
+    # NOTE: params are added on runtime by name
     # TODO: introduce params for POST method
 
     def get_param_query_string(self) -> str:
@@ -113,13 +112,14 @@ class ModelRequestInput(BaseModel):
     def get_query_string(self) -> str:
         ''' Get query string of this request
             Includes params and settings like script_special_requested_entity
+            Only used in forwarding to default script path
         '''
         pq = self.get_param_query_string()
-        manual_query_string = f'script_special_requested_entity={self.script_special_requested_entity}'
-        if len(pq) > 0:
-            return pq + f'&{manual_query_string}'
-        else:
-            return  f'?{manual_query_string}'
+
+        query_string_logic = '&' if len(pq) > 0 else '?'
+        manual_query_string = f'{query_string_logic}script_special_requested_entity={self.script_special_requested_entity}' if self.script_special_requested_entity else ''
+           
+        return pq + f'{manual_query_string}'
 
 
 

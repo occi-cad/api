@@ -36,7 +36,6 @@ class ModelRequest(BaseModel):
     batch_id: str = None # some id to group requests 
     batch_on_end_action: ComputeBatchEndAction = 'publish'
     settings:dict = {} # specific options for execution engine
-    
 
     def get_param_query_string(self) -> str:
         '''

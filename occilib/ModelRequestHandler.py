@@ -177,6 +177,7 @@ class ModelRequestHandler():
         # Based on settings in the request we return different things
         if script_result:
             if script_result.results.success is True:
+            
                 if new:
                     self.library.checkin_script_result_in_cache(script_result)
                 
