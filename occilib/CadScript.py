@@ -250,17 +250,20 @@ class CadScript(BaseModel):
             param_set_hash = self.hash(param_set)
             yield param_set_hash, param_values
 
-    def get_num_variants(self) -> int|None:
+    def get_num_variants(self, only_params:List[str]=None) -> int|None:
 
         '''
-            Get total number of variants for this script:
+            Get number of variants for this script
+            either of all params, or selected ones
             All possible values of every parameter (NVP..NVPn)
             num variants = NVP1 * NVP2 * ... NVPN
             returns None if infinite
         '''
 
+        selected_params = self.params if only_params is None else dict((pn, self.params[pn]) for pn in only_params if pn in self.params)
+            
         num_combinations = 1
-        for param_obj in self.params.values():
+        for param_obj in selected_params.values():
             if param_obj.enabled:
                 v = param_obj.values()
                 if v is None:

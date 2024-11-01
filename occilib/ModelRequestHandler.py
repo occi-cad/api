@@ -253,7 +253,8 @@ class ModelRequestHandler():
 
         # always make sure we have a version, redirect if needed
         if req.script_version is None:
-            return RedirectResponse(f'/{script.namespace}/{script.version}{req.get_query_string()}') # return to default version, forward params
+            # return to default version, forward params
+            return RedirectResponse(f'/{script.namespace}/{script.version}{req.get_query_string()}') 
 
         requested_script = self._req_to_script_request(req)
         requested_script.hash() # set hash based on params
@@ -427,8 +428,6 @@ class ModelRequestHandler():
 
         # NOTE: script can also have no parameters!    
         return script_request
-
-
 
     #### CACHE PRE-CALCULATION ####
 

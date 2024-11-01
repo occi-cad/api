@@ -798,9 +798,10 @@ class CadLibrary:
 
             return compute_batch_id
     
-    async def compute_script_cache_async(self, script:CadScript, compute_batch_id:str, on_done:Callable[[str],bool]=None) -> str:
+    async def compute_script_cache_async(self, script:CadScript, only_params:List[str], compute_batch_id:str, on_done:Callable[[str],bool]=None) -> str:
         """
-            Precalculate all variants of script asynchronously
+            Precalculate all variants 
+            or those with selected params (as given in only_params) of script asynchronously
             returns a batch_id immediately for reference later
         """
 
@@ -812,7 +813,7 @@ class CadLibrary:
             return None
         
         # basic batch information to keep track of progress
-        num_variants = script.get_num_variants()
+        num_variants = script.get_num_variants(only_params)
 
         if num_variants is None:
             return 'no-precompute possible'
