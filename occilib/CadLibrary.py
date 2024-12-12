@@ -495,7 +495,7 @@ class CadLibrary:
         else:
             with open(cached_script_path) as f:
                 cached_script_dict = json.loads(f.read())
-                cached_script = CadScriptResult(**cached_script_dict)
+                cached_script = CadScriptResult(**cached_script_dict) # automatically generated url
                 # take over the request data 
                 cached_script.request = script.request
                 self._apply_single_model_format(cached_script)
