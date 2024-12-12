@@ -21,6 +21,8 @@ import itertools
 from .models import ScriptCadEngine, ModelContentLicense, ModelResult, ModelFormat, ModelQuality, RequestResultFormat, ModelUnits, EndpointStatus, ComputeBatchEndAction
 from .Param import ParamConfigBase, ParamConfigNumber, ParamConfigText, ParamConfigBoolean, ParamConfigOptions
 
+from dotenv import dotenv_values
+CONFIG = dotenv_values()
 
 class ModelRequest(BaseModel):
     """
@@ -66,7 +68,7 @@ class CadScript(BaseModel):
     author:str = None
     license:ModelContentLicense = None
     version:str = '1.0'
-    url:str = None # url of the endpoint where the script can be found
+    url:str = None # url of the endpoint where the script can be found (with version) - automatically by @validator
     description:str = None 
     created_at:datetime = datetime.now()
     updated_at:datetime = datetime.now()
@@ -94,6 +96,11 @@ class CadScript(BaseModel):
         # always generate namespace from name and org
         return cls.get_namespace(None,**values) # this is somewhat hacky: cls is not an instance!
     
+    @validator('url', always=True)
+    def set_url(cls, value, values):
+        # always generate url from base url, namespace and version
+        return cls.get_url(None,**values) # this is somewhat hacky: cls is not an instance!
+    
     @validator('params', pre=True)
     def upgrade_params(cls, value, values):
         """
@@ -119,6 +126,7 @@ class CadScript(BaseModel):
         return new_params
     
     #### CLASS METHODS ####
+
     def get_namespace(self, org:str=None, name:str=None, **kwargs) -> str:
         """
             Generate namespace
@@ -128,6 +136,18 @@ class CadScript(BaseModel):
         name = name or getattr(self, 'name', None)
         if org is not None and len(org) > 0 and name is not None and len(name) > 0:
             return f'{org}/{name}'
+        return None
+    
+    def get_url(self, org:str=None, name:str=None, version:str=None, **kwargs) -> str:
+        """
+            Generate namespace url
+        """
+        org = org or getattr(self, 'org', None)
+        name = name or getattr(self, 'name', None)
+        version = version or getattr(self, 'version', None)
+        url = CONFIG.get('API_ROOT_URL')
+        if org is not None and len(org) > 0 and name is not None and len(name) > 0 and version is not None and url:
+            return f'{url}/{org}/{name}:{version}'
         return None
 
     def hash(self, params: Dict[str, Any]=None) -> str:
