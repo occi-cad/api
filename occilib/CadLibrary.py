@@ -39,7 +39,7 @@ from .Param import ParamConfigNumber, ParamConfigText, ParamConfigOptions, Param
 from .models import ComputeBatchStats
 
 from dotenv import dotenv_values
-CONFIG = dotenv_values()
+DOTENV_CONFIG = dotenv_values()
 
 class CadLibrary:
 
@@ -269,8 +269,10 @@ class CadLibrary:
                 base_script.namespace = f'{base_script.org}/{base_script.name}'
                 base_script.version = script_path_values['version']
                 base_script.id = f"{base_script.org}/{base_script.name}/{base_script.version}"
-                base_script.url = f"{CONFIG['API_ROOT_URL']}/{base_script.namespace}" if (CONFIG and CONFIG.get('API_ROOT_URL')) else None
-                
+                # In Docker we might directly have environment variables, no .env
+                url_root = os.environ.get('API_ROOT_URL') or DOTENV_CONFIG.get('API_ROOT_URL') or None
+                base_script.url = f"{url_root}/{base_script.namespace}:{base_script.version}" if url_root else None
+
                 self._set_script_dir(base_script.name, script_path)
 
                 # try getting extra info from path

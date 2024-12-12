@@ -12,6 +12,7 @@ from typing import List, Any, Dict, Tuple, Iterator, Optional
 from pydantic import BaseModel, validator
 import tempfile
 from fastapi.responses import FileResponse
+import os
 
 import hashlib
 import base64
@@ -22,7 +23,7 @@ from .models import ScriptCadEngine, ModelContentLicense, ModelResult, ModelForm
 from .Param import ParamConfigBase, ParamConfigNumber, ParamConfigText, ParamConfigBoolean, ParamConfigOptions
 
 from dotenv import dotenv_values
-CONFIG = dotenv_values()
+DOTENV_CONFIG = dotenv_values()
 
 class ModelRequest(BaseModel):
     """
@@ -95,12 +96,12 @@ class CadScript(BaseModel):
     def set_namespace(cls, value, values):
         # always generate namespace from name and org
         return cls.get_namespace(None,**values) # this is somewhat hacky: cls is not an instance!
-    
-    @validator('url', always=True)
-    def set_url(cls, value, values):
-        # always generate url from base url, namespace and version
-        return cls.get_url(None,**values) # this is somewhat hacky: cls is not an instance!
-    
+
+    '''
+    Don't set static url always, only in output to client for most flexibility      
+    We do set it in a CadScriptResult
+    '''
+        
     @validator('params', pre=True)
     def upgrade_params(cls, value, values):
         """
@@ -145,9 +146,9 @@ class CadScript(BaseModel):
         org = org or getattr(self, 'org', None)
         name = name or getattr(self, 'name', None)
         version = version or getattr(self, 'version', None)
-        url = CONFIG.get('API_ROOT_URL')
-        if org is not None and len(org) > 0 and name is not None and len(name) > 0 and version is not None and url:
-            return f'{url}/{org}/{name}:{version}'
+        base_url = os.environ.get('API_ROOT_URL') or DOTENV_CONFIG.get('API_ROOT_URL') or None
+        if base_url:
+            return f'{base_url}/{org}/{name}:{version}'
         return None
 
     def hash(self, params: Dict[str, Any]=None) -> str:
@@ -330,6 +331,11 @@ class CadScriptResult(CadScriptRequest):
         CadScript that has been through compute and has results
     """
     results:ModelResult = ModelResult()
+
+    # for results we do return the url, set it automatically with this validator
+    @validator('url', always=True)
+    def set_url(cls, value, values):
+        return cls.get_url(None,**values) # this is somewhat hacky: cls is not an instance!
     
     def get_model_file_response(self, format:ModelFormat) -> FileResponse:
 
