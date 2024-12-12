@@ -148,7 +148,7 @@ class CadScript(BaseModel):
         version = version or getattr(self, 'version', None)
         base_url = os.environ.get('API_ROOT_URL') or DOTENV_CONFIG.get('API_ROOT_URL') or None
         if base_url:
-            return f'{base_url}/{org}/{name}:{version}' # No version here yet for backward compatibility
+            return f'{base_url}/{org}/{name}/{version}' # No ':' but / for version
         return None
 
     def hash(self, params: Dict[str, Any]=None) -> str:

@@ -271,7 +271,8 @@ class CadLibrary:
                 base_script.id = f"{base_script.org}/{base_script.name}/{base_script.version}"
                 # In Docker we might directly have environment variables, no .env
                 url_root = os.environ.get('API_ROOT_URL') or DOTENV_CONFIG.get('API_ROOT_URL') or None
-                base_script.url = f"{url_root}/{base_script.namespace}:{base_script.version}" if url_root else None
+                # NOTE: we don't use :{version} in urls in OCCI server
+                base_script.url = f"{url_root}/{base_script.namespace}/{base_script.version}" if url_root else None
 
                 self._set_script_dir(base_script.name, script_path)
 
