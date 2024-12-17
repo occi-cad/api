@@ -232,7 +232,6 @@ class ModelRequestHandler():
                 Print out versions or params for introspection
 
         """
-
         if req is None or not isinstance(req, ModelRequestInput):
             m = 'ModelRequestHandler::handle(script): No request received'
             self.logger.error(m)
@@ -259,13 +258,14 @@ class ModelRequestHandler():
         requested_script = self._req_to_script_request(req)
         requested_script.hash() # set hash based on params
 
-        if self.library.is_cached(requested_script):
+        if req.no_cache is False and self.library.is_cached(requested_script):
+            # TODO: check if the requested products are there (like docs)
             self.logger.info(f'**** {requested_script.name}: CACHE HIT FOR REQUEST script "{req.script_name}" - model hash "{requested_script.hash()}" [format="{req.format}" output="{req.output}"] ****')
             cached_script_result = self.library.get_cached_script(requested_script)
             return self.handle_requested_script_result(req, cached_script_result, new=False)
             
         else:
-            # no cache - but already computing?
+            # no cache - first computing status
             computing_job = self.library.check_script_model_computing_job(script=requested_script, script_instance_hash=requested_script.hash())
             if computing_job is not None:
                 # refer back to compute url
