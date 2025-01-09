@@ -79,11 +79,15 @@ class CadScript(BaseModel):
     units:Optional[ModelUnits] = None
     params:Dict[str, ParamConfigBase | ParamConfigNumber | ParamConfigText | ParamConfigBoolean | ParamConfigOptions ] = {} # list of param definitions - TODO: combine ParamTypes
     param_presets:Dict[str, dict] = {} # TODO: presets of parameters by name and then a { param_name: value } dict
-    public_code:bool = False # if public user of the API can see the source code of the CAD script
     code: str  = None# the code of the CAD script
+
     cad_engine:ScriptCadEngine = 'cadquery' # cadquery, archiyou or openscad (and many more may follow)
     cad_engine_version:str = None # not used currently
     cad_engine_config:dict = None # plug all kind of specific script cad engine config in here
+
+    public_code:bool = False # if public user of the API can see the source code of the CAD script
+    public_code_url:str = None # url to the source code - for example open a editor with the code
+
     secret_edit_token:str = None # TODO
     meta:dict = {} # TODO: Remove? Generate tag for FastAPI on the fly
 
