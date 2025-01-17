@@ -172,7 +172,6 @@ class Admin:
                 self.publish_jobs[pub_job.id].status = 'success'
 
             asyncio.create_task(
-                # TODO: only_params as parameter
                 self.api_generator.library.compute_script_cache_async(script=req.script, only_params=None, compute_batch_id=batch_id, on_done=on_done)
             ) # don't await this
             # Report back to the API user about the PublishJob

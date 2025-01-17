@@ -47,6 +47,16 @@ python main.py
 
 Check out various test scripts in debug/
 
+## Python Development with an external worker
+
+You can connect to a specific worker to avoid running a whole stack with RabbitMQ, redis etc.
+Just make sure you enable a worker in .env and set the correct Celery url
+
+```
+OCCI_ARCHIYOU=1
+CELERY_BROKER_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rmq:5672
+```
+
 
 ## OCCI API docs
 

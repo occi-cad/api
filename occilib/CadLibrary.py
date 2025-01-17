@@ -778,8 +778,6 @@ class CadLibrary:
             self.logger.error(f'CadLibrary::compute_script_cache: Script has no variants to pre calculate!')
             return None
         else:
-            
-
             # IMPORTANT: currently the tasks of a cache batch are saved centrally in the main API instance
             # This might not scale very well with multiple API instances (like is normal with FastAPI/uvicorn in production)
             # The API instances do maintain a link with the task by waiting for it asynchronously 
@@ -846,7 +844,7 @@ class CadLibrary:
 
     def compute_cache(self):
         """
-            Compute and cache synchronously  all results of cachable scripts in this library
+            Compute and cache synchronously all results of cachable scripts in this library
             NOTE: Cache management is centralized: We don't allow workers to write to cache!
         """
 
