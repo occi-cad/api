@@ -54,7 +54,7 @@ class ModelContentLicense(str, Enum):
 class ScriptCadEngine(str,Enum):
     cadquery = 'cadquery'
     archiyou = 'archiyou'
-    openscad = 'openscad' # Not yet supported
+    # openscad = 'openscad' # Not yet supported
 
 class ModelFormat(str,Enum):
     """ Also the extension """
@@ -72,6 +72,7 @@ class RequestResultFormat(str,Enum):
     model = 'model'
     
 class ComputeBatchStats(BaseModel):
+    batch_id: str = None
     tasks:int = 0 
     done:int = 0
     duration:int = 0 # in ms
@@ -93,7 +94,7 @@ class ModelRequestInput(BaseModel):
     script_name:str = None # always lowercase
     script_version:str = None
     script_special_requested_entity:str = None # requested entity: None=script, versions, params, presets, {{file.ext}}
-    format: ModelFormat = 'step' # TODO: check what is available
+    format: ModelFormat = 'gltf' # TODO: check what is available
     output:RequestResultFormat = 'model' # The way to output. Either just a model (default) or the full CadScriptResult with the specific format
     no_cache:bool = False # cache by default
     settings:dict = {} # more refined settings (maybe cad engine specific)

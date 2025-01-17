@@ -27,13 +27,19 @@ from occilib.Admin import Admin
 #### CONFIG HANDLING - FROM ENV VARIABLES (SET IN DOCKER CONTAINER) OR .ENV FILE (FOR LOCAL DEBUG) ####
 
 CONFIG = {
-    **dotenv_values('.env'),
-    **os.environ
+    **os.environ, # From Docker
+    **dotenv_values('.env'), # From local .env file
+    # NOTE: during dev os.environ can have preset values, so we need to overwrite them with .env values
+    # TODO: Check if this works the best in Docker
 }
 
 #### START MAIN INSTANCES ####
 
-library = CadLibrary('./scriptlibrary')
+requested_workers = []
+if CONFIG.get('OCCI_CADQUERY') == '1': requested_workers.append('cadquery')
+if CONFIG.get('OCCI_ARCHIYOU') == '1': requested_workers.append('archiyou') 
+
+library = CadLibrary(rel_path='./scriptlibrary', workers=requested_workers)
 scripts = library.scripts
 no_workers = CONFIG.get('LOCAL_DEBUG_MODE' ) == '1' or (CONFIG.get('OCCI_CADQUERY') == '0' and CONFIG.get('OCCI_ARCHIYOU') == '0')
 api_generator = ApiGenerator(library, no_workers=no_workers)

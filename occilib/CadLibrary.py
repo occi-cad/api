@@ -36,7 +36,7 @@ from semver.version import Version
 from .CadScript import ModelRequest, CadScript, CadScriptRequest, CadScriptResult, ModelComputeJob
 from .CadLibrarySearch import CadLibrarySearch
 from .Param import ParamConfigNumber, ParamConfigText, ParamConfigOptions, ParamConfigBoolean
-from .models import ComputeBatchStats
+from .models import ComputeBatchStats, ScriptCadEngine
 
 from dotenv import dotenv_values
 DOTENV_CONFIG = dotenv_values()
@@ -54,6 +54,7 @@ class CadLibrary:
     searcher:CadLibrarySearch = None 
     source = 'disk' # source of the scripts: disk or file (debug)
     rel_path = DEFAULT_PATH # relative path to directory of CadScripts
+    workers:List[ScriptCadEngine] = [] # list of workers that are availble - these are checked for availability
     path = None # absolute path to directory of CadScripts
     scripts:List[CadScript] = [] # all scripts
 
@@ -65,12 +66,13 @@ class CadLibrary:
     _compute_batch_stats:Dict[str,ComputeBatchStats] = {} # by uuid - IMPORTANT: this data needs to be centralized (in Redis for example) when we want multiple API instances
     _background_async_tasks = set() # Needed to keep references to tasks that might be otherwise deleted by carbage collection
 
-    def __init__(self, rel_path:str=DEFAULT_PATH):
+    def __init__(self, rel_path:str=None, workers:List[ScriptCadEngine]=[]):
         """
             Populate a library with CadScripts either from a directory (default) or a json file (for debugging)
             Paths are relative to root of the api directory
         """
         self._setup_logger()
+        self.workers = workers # workers are checked for availability in ModelRequestHandler
         
         self.path = Path(rel_path).resolve()
         pathlib.Path(self.path).mkdir(parents=True, exist_ok=True) # make path if not present
@@ -89,6 +91,7 @@ class CadLibrary:
         self.searcher = CadLibrarySearch(library=self) # initiate search index
 
         self._print_library_overview()
+
 
 
     def set_api_generator(self, api_generator:Any): # use any here to avoid circular import
@@ -650,7 +653,7 @@ class CadLibrary:
         # cache if cachable
         result_cache_dir = f'{self._get_script_version_cached_model_dir(script_result)}'
 
-        if script_result.is_cachable():
+        if script_result.is_pre_cachable():
             # place total JSON response in cache
             Path(result_cache_dir).mkdir(parents=True, exist_ok=True)
 
@@ -690,8 +693,7 @@ class CadLibrary:
 
         # manage batch stats
         if script_result.request.batch_id is not None:
-            self._compute_batch_stats[script_result.request.batch_id].done += 1 # increment
-            self._compute_batch_stats[script_result.request.batch_id].duration += script_result.results.duration # increment duration in ms
+            self.compute_batch_increment(batch_id=script_result.request.batch_id, duration=script_result.results.duration)
 
         return script_result
 
@@ -751,9 +753,7 @@ class CadLibrary:
         
         return self.api_generator._generate_version_endpoint(script)
 
-
-
-    def compute_script_cache(self, org:str, name:str) -> str:
+    def compute_script_cache(self, org:str, name:str, version:str=None, only_params:List[str] = None) -> str:
         '''
             Given a script org and name compute its cache synchronously 
             If started compute return batch_id
@@ -762,34 +762,37 @@ class CadLibrary:
         from .ModelRequestHandler import ModelRequestHandler # keep this from the normal imports
         self.request_handler = ModelRequestHandler(library=self)
 
-        script = self.get_script_request(org, name)
+        script = self.get_script_request(org, name, version)
         if script is None:
             self.logger.error(f'CadLibrary::compute_script_cache: Can not get script with org="{org}" and name="{name}"')
             return None
         
-        if not script.is_cachable():
-            self.logger.error(f'CadLibrary::compute_script_cache: Script is not cachable!')
+        if not script.is_pre_cachable(only_params=only_params):
+            self.logger.error(f'CadLibrary::compute_script_cache: Script is not pre-cachable!')
             return None
 
         # basic batch information to keep track of progress
-        num_variants = script.get_num_variants()
+        num_variants = script.get_num_variants(only_params=only_params)
 
         if num_variants is None:
+            self.logger.error(f'CadLibrary::compute_script_cache: Script has no variants to pre calculate!')
             return None
         else:
-            compute_batch_id = str(uuid.uuid4())
+            
 
             # IMPORTANT: currently the tasks of a cache batch are saved centrally in the main API instance
             # This might not scale very well with multiple API instances (like is normal with FastAPI/uvicorn in production)
             # The API instances do maintain a link with the task by waiting for it asynchronously 
             # But requests from API user might come at any API instance
-            # TODO: use redis to save stats on different compute jobs?
-            self._compute_batch_stats[compute_batch_id] = ComputeBatchStats(tasks=num_variants)
+            # TODO: use Redis to save stats on different compute jobs?
+            
+            compute_batch_id = str(uuid.uuid4())
+            self.register_compute_batch(compute_batch_id, num_tasks=num_variants)
 
             self.logger.info(f'==== START COMPUTE CACHE FOR SCRIPT "{script.name}" with {num_variants} model variants ====')
             
             async_compute_tasks = []            
-            for hash,param_values in script.iterate_possible_model_params_dicts():
+            for hash,param_values in script.iterate_possible_model_params_dicts(only_params=only_params):
                 # NOTE: hash is omitted
                 async_compute_tasks.append(self._submit_and_handle_compute_script_task(script, param_values,compute_batch_id))
         
@@ -806,24 +809,26 @@ class CadLibrary:
             Precalculate all variants 
             or those with selected params (as given in only_params) of script asynchronously
             returns a batch_id immediately for reference later
+            
+            NOTE: Use this function with await to wait for the results, or run a sync task for non-blocking
         """
 
         from .ModelRequestHandler import ModelRequestHandler # keep this from the normal imports
         self.request_handler = ModelRequestHandler(library=self)
         
-        if not script.is_cachable():
+        if not script.is_pre_cachable():
             self.logger.error(f'CadLibrary::compute_script_cache: Script is not cachable!')
             return None
         
         # basic batch information to keep track of progress
-        num_variants = script.get_num_variants(only_params)
+        num_variants = script.get_num_variants(only_params=only_params)
 
         if num_variants is None:
             return 'no-precompute possible'
         else:
-            self._compute_batch_stats[compute_batch_id] = ComputeBatchStats(tasks=num_variants)
+            self.register_compute_batch(compute_batch_id, num_tasks=num_variants)
 
-            for hash,param_values in script.iterate_possible_model_params_dicts():
+            for hash,param_values in script.iterate_possible_model_params_dicts(only_params=only_params):
                 # TODO: should we await the results here instead of creating the tasks concurrently - it might block the event loop
                 # This function also copies general publish settings from script.cad_engine_config to script.request
                 task = asyncio.create_task(self._submit_and_handle_compute_script_task(script, param_values,compute_batch_id))
@@ -851,7 +856,7 @@ class CadLibrary:
         async_compute_tasks = []
 
         for script in self.scripts:
-            if script.is_cachable():
+            if script.is_pre_cachable():
                 param_values_sets = script.all_possible_model_params_dicts() # { hash : { param_name: value, .. }}
 
                 self.logger.info(f'==== START COMPUTE CACHE FOR SCRIPT "{script.name}" with {len(param_values_sets.items())} models ====')
@@ -876,7 +881,38 @@ class CadLibrary:
 
         return script_request
 
+    #### COMPUTE JOBS REGISTER ####
 
+    def register_compute_batch(self, batch_id:str=None, num_tasks:int=0) -> ComputeBatchStats:
+        """
+            Register a compute batch with a given batch_id and number of tasks
+        """
+
+        if batch_id is None:
+            self.logger.error(f'CadLibrary::register_compute_batch(): Please supply batch_id!')
+            return None
+        
+        batch = ComputeBatchStats(batch_id=batch_id, tasks=num_tasks)
+        self._compute_batch_stats[batch_id] = batch
+        return batch
+    
+    def get_compute_batch(self, batch_id:str=None) -> ComputeBatchStats:
+
+        return self._compute_batch_stats.get(batch_id, None)
+
+    
+    def compute_batch_increment(self, batch_id:str, duration:int=0 ) -> ComputeBatchStats:
+        """
+            Update batch stats after a result
+        """
+        if batch_id not in self._compute_batch_stats.keys():
+            self.logger.error(f'CadLibrary::compute_batch_increment(): Batch ID "{batch_id}" not found!')
+            return None
+
+        self._compute_batch_stats[batch_id].done += 1
+        self._compute_batch_stats[batch_id].duration += duration
+
+        return self._compute_batch_stats[batch_id]
     
 
     #### SEARCH ####

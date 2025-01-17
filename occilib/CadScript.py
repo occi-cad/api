@@ -188,13 +188,15 @@ class CadScript(BaseModel):
         HASH_LENGTH_TRUNCATE = 11
         return base64.urlsafe_b64encode(hashlib.md5(inp.encode()).digest())[:HASH_LENGTH_TRUNCATE].decode("utf-8")
 
-    def is_cachable(self) -> bool:
+    def is_pre_cachable(self, only_params:List[str]=None) -> bool:
         """
             Return if the script is cachable by assessing its parameter configuration
         """
         for name,param in self.params.items():
-            if param.iterable is False:
-                return False
+            if only_params is None or name in only_params:
+                if param.iterable is False:
+                    return False # directly end because we encountered a non-iterable param (like text)
+            
         return True
 
     
@@ -207,7 +209,7 @@ class CadScript(BaseModel):
             
         """
 
-        if self.is_cachable() is False:
+        if self.is_pre_cachable() is False:
             return {}
 
         all_values_per_parameter = []
@@ -248,7 +250,7 @@ class CadScript(BaseModel):
         return all_model_param_sets
                     
     
-    def iterate_possible_model_params_dicts(self) -> Iterator[Tuple[str, dict]]: # hash, { param1: { value: x }}
+    def iterate_possible_model_params_dicts(self, only_params:List[str] = None) -> Iterator[Tuple[str, dict]]: # hash, { param1: { value: x }}
 
         '''
             Iterator over all combinations of param values
@@ -256,11 +258,14 @@ class CadScript(BaseModel):
 
         all_values_per_parameter = [] # groups parameter values [ [p1v1,p1v2],[p2v1]]
         for param in self.params.values():
-            if param.enabled:
-                all_values_per_parameter.append(param.values())
-            else:
-                # if disabled only use the default value
-                all_values_per_parameter.append([param.default])
+            
+            if only_params is None or only_params == [] or (type(only_params) is list and param.name in only_params):
+                # only use the selected params (if given)
+                if param.enabled:
+                    all_values_per_parameter.append(param.values())
+                else:
+                    # if disabled only use the default value
+                    all_values_per_parameter.append([param.default])
 
         for combination in itertools.product(*all_values_per_parameter):
             param_values = {}

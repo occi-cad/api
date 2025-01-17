@@ -7,8 +7,6 @@ import random
 from celery import Celery # docs: https://docs.celeryq.dev/en/stable/userguide/tasks.html#basics
 from celery.signals import after_task_publish
 
-import cadquery
-from cadquery import cqgi
 from pathlib import Path
 
 from .CadScript import CadScriptResult
@@ -32,6 +30,11 @@ celery.conf.task_default_routing_key = 'cadquery'
 # we presume that cqworker will run in a docker container
 Path("/cqworkertmp").mkdir(parents=True, exist_ok=True)
 os.chdir('/cqworkertmp')
+
+# Only import cadquery if enabled in .env
+if CONFIG.get('OCCI_CADQUERY') == '1':
+    import cadquery
+    import cadquery.cqgi as cqgi
 
 @celery.task(name='cadquery.compute', bind=True, delivery_mode=1) # delivery mode 1 for non persistence
 def compute_job_cadquery(self,script:str): # json of CadScript 

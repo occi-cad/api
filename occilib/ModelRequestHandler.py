@@ -91,7 +91,9 @@ class ModelRequestHandler():
 
     def check_celery(self) -> bool:
         '''
-            Check if Celery can connect to its backend(s) and if there are workers for both cad script engines
+            Check if Celery can connect to its backend(s) 
+            and if there are workers for requested cad script engines in library.workers
+            after test populate in self.available_scriptengine_workers
         '''
 
         self.logger.info('**** CHECKING CELERY CONNECTIONS ****')
@@ -106,15 +108,14 @@ class ModelRequestHandler():
                 self.logger.error('ModelRequestHandler::check_celery: No workers connected to compute queues')
                 return False
 
-            # NOTE: inspecting active queues do not work with archiyou node-celery worker
-            ay_flag = os.environ.get(self.CAD_SCRIPT_ENGINES['archiyou'])
-            if ay_flag == '1' and self.test_archiyou_worker() is True:
+            # IMPORTANT: inspecting active queues does not work with archiyou node-celery worker
+
+            if 'archiyou' in self.library.workers and self.test_archiyou_worker() is True:
                 if 'archiyou' not in self.available_scriptengine_workers:
                     self.available_scriptengine_workers.append('archiyou') 
             
             # test CQ connection through Celery queues
-            cq_flag = os.environ.get(self.CAD_SCRIPT_ENGINES['cadquery'])
-            if cq_flag == '1':
+            if 'cadquery' in self.library.workers:
                 for worker_host, worker_queue_info in self.celery.control.inspect().active_queues().items():
                     queue_name = worker_queue_info[0].get('name') if len(worker_queue_info) > 0 else None
                     if queue_name:
@@ -139,12 +140,13 @@ class ModelRequestHandler():
             return False
 
     def test_archiyou_worker(self) -> bool:
-
+        
         from .celery_tasks import compute_job_archiyou # dynamic import because celery_tasks need to be avoided in no_workers mode
 
         try:
+            self.logger.info(f'ModelRequestHandler::test_archiyou_worker: Testing archiyou worker')
             result = compute_job_archiyou.apply_async(args=[], kwargs={ 'script' : None })
-            result.get()
+            result.get() # if no error, this should work
             return True
         except Exception as e:
             self.logger.error(e)

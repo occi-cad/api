@@ -18,7 +18,7 @@
 import logging
 import uuid
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List
 from enum import Enum
 import asyncio
 
@@ -119,6 +119,18 @@ class Admin:
             async def unpublish(script_id:int, credentials: HTTPBasicCredentials = Depends(self._validate_credentials)):
                 return script_id
             
+            # Submit a request to pre-calculate models variant of a script with specific params (the others params have default values)
+            # /admin/precalc/{org}/{name}/{version}?params=width,height,..
+            @api.get('/admin/precalc/{script_org}/{script_name}/{script_version}')
+            async def precalc(script_org:str, script_name:str, script_version:str, params:str=[], credentials: HTTPBasicCredentials = Depends(self._validate_credentials)):
+                return await self._handle_precalc_request(script_org, script_name, script_version, params.split(',') if len(params) > 0 else [])
+
+            # Get results from pre-calculate job
+            @api.get('/admin/precalc/{batch_id}')
+            async def precalc_job(batch_id) -> ComputeBatchStats:
+                return self.api_generator.library.get_compute_batch(batch_id)
+
+            
     def _validate_credentials(self, credentials: HTTPBasicCredentials = Depends(security)) -> bool:
 
         r = secrets.compare_digest(credentials.username.encode("utf8"), self.SECURITY_ADMIN_USERNAME.encode('utf8')) \
@@ -149,7 +161,7 @@ class Admin:
         self.api_generator._generate_default_version_endpoint(script=req.script) 
 
         # If request (and possible) start pre-calculation of models into cache asynchronously
-        if not req.pre_calculate or not req.script.is_cachable():
+        if not req.pre_calculate or not req.script.is_pre_cachable():
             # no compute requested (or available)
             return PublishJob(script=req.script, status='success')
         else:
@@ -165,7 +177,6 @@ class Admin:
             ) # don't await this
             # Report back to the API user about the PublishJob
             pub_job = PublishJob(id=batch_id, script=req.script, status='computing')
-
             self.publish_jobs[pub_job.id] = pub_job
 
             return pub_job
@@ -174,11 +185,12 @@ class Admin:
     def _get_publish_job(self, id:str) -> PublishJob:
         """
             Get the state of the publish job
+            We use the underlying compute job in the library that we gave the same id
             !!!! TODO: We need to centralize job info in Redis if we want to use multiple API instances
         """
         pub_job = self.publish_jobs.get(id)
         if pub_job:
-            pub_job.stats = self.api_generator.library._compute_batch_stats.get(id)
+            pub_job.stats = self.api_generator.library.get_compute_batch(batch_id=id)
             return pub_job
         
         raise HTTPException(status_code=404, detail=f'Cannot find publish job widh id "{id}"!')
@@ -200,6 +212,42 @@ class Admin:
             raise HTTPException(status_code=400, detail=f'Your script contains no field "code" or too little code. Is this a real model? Minimum is {self.SCRIPT_CODE_MIN_CHARS}')
         
         return True
+    
+
+    async def _handle_precalc_request(self, script_org:str, script_name:str, script_version:str, params:List[str]) -> bool:
+        """
+            Handles a request to pre-calculate a given script with given parameters
+        """ 
+
+        library = self.api_generator.library
+        
+        # First do some testing
+        script = library.get_script_request(org=script_org, name=script_name, version=script_version)
+        if script is None: 
+            raise HTTPException(status_code=400, detail=f'Cannot find script with org="{script_org}", name="{script_name}", version="{script_version}"')
+
+        # Test the incoming params. Case insensitive. 
+        validated_params = [p for p in script.params.keys() if p.lower() in [ p.lower() for p in params ]]
+
+        if len(validated_params) == 0:
+            raise HTTPException(status_code=400, detail=f'Please supply a list of valid parameter names to pre-calculate. Valid are: {",".join(script.params.keys())}')
+
+        # Start the pre-calculation (without using await) and return the batch_id
+        batch_id = str(uuid.uuid4())
+        # callback function
+        def on_done(batch_id) -> bool:
+                # Don't do much here for now
+                self.logger.info(f'Pre-calculation of script {script.get_namespace()} with params {validated_params} done!')
+
+        asyncio.create_task(
+                library.compute_script_cache_async(
+                    script=script, 
+                    only_params=validated_params, 
+                    compute_batch_id=batch_id, 
+                    on_done=on_done)
+            ) # don't await this
+        
+        return batch_id # TODO: batch_id is not yet registered like with publish jobs
 
 
     #### CLASS UTILS ####
