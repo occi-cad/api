@@ -86,7 +86,7 @@ class CadScript(BaseModel):
     cad_engine_config:dict = None # plug all kind of specific script cad engine config in here
 
     public_code:bool = False # if public user of the API can see the source code of the CAD script
-    public_code_url:str = None # url to the source code - for example open a editor with the code
+    public_code_url:str = None # url to the source code - for example an editor with the code
 
     secret_edit_token:str = None # TODO
     meta:dict = {} # TODO: Remove? Generate tag for FastAPI on the fly

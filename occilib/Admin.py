@@ -102,7 +102,7 @@ class Admin:
             # /admin/publish
             @api.post('/admin/publish')
             async def publish(req:PublishRequest, credentials: HTTPBasicCredentials = Depends(self._validate_credentials)) -> dict:
-                # !!!! BEWARE !!!! Using response types in these route methods (like -> PublishJob ) 
+                # !!!! BEWARE !!!! Using response types in these route methods (-> PublishJob)
                 # seems to force some re-parsing (and somehow skipping upgrading params in CadScript.params ) !!!!
                 job = await self._handle_publish_request(req)
                 return job.dict()
@@ -146,8 +146,6 @@ class Admin:
         
         # Add endpoint for this script version
         self.api_generator._generate_version_endpoint(script=req.script)
-        # IMPORTANT: this probably does not yet overwrite existing route. See: https://github.com/tiangolo/fastapi/discussions/8489
-        # A restart of the server - or API is still required here!
         self.api_generator._generate_default_version_endpoint(script=req.script) 
 
         # If request (and possible) start pre-calculation of models into cache asynchronously
